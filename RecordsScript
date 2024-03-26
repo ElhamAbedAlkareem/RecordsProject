@@ -1,0 +1,699 @@
+#! /bin/bash
+
+###########################################################
+#check if input entered is not a number
+Is_Number(){
+if [[ "$1" =~ ^[0-9]+$ ]]    
+then
+        return 1
+else 
+       return 0
+fi
+}
+
+###########################################################
+validate_string() {
+    if [[ "$1" =~ ^[a-zA-Z]+$ ]]
+    then
+        return 1
+    else
+        return 0
+    fi
+}
+   
+###########################################################
+# Check if the file is exists
+Is_Exist(){
+File_Name=$1
+
+ if [ -f $File_Name ]
+ then
+ 	return 1
+ else  
+ 	return 0
+ fi
+    
+}
+#######################################################################################
+# Check if the file is not empty
+Is_Empty(){
+File_Name=$1
+ if [ -s $File_Name ]
+ then
+ 	return 1
+ else  
+ 	return 0	
+ fi
+    
+}
+
+#######################################################################################
+# Check if the file is Writable
+Is_Writable(){
+File_Name=$1
+ if [ ! -w $File_Name ]
+ then
+ 	chmod +w $File_Name
+ fi
+    
+}
+
+   
+#######################################################################################
+# Check if the file is Readable
+Is_Readable(){
+File_Name=$1
+ if [ ! -r $File_Name ]
+ then
+      	chmod +r $File_Name
+ fi
+    
+}
+
+#######################################################################################
+# Function to display the main menu
+main_menu() {
+    echo "Main Menu"
+    echo "1. Add record"
+    echo "2. Delete record"
+    echo "3. Search record"
+    echo "4. Update name of record"
+    echo "5. Update copies amount of record"
+    echo "6. Show the Total amount of records"
+    echo "7. Display all records"
+    echo "8. Exit"
+
+    read -p "Plaese enter your choice: " choice
+    
+    case $choice in
+        1)
+            Add_Record
+            ;;
+        2)
+            Delete_Record
+            ;;
+        3)
+            Search_Record
+            ;;
+        4)
+            Update_Name_Of_Record
+            ;;    
+        5)
+            Update_Copies_Of_Record
+            ;;
+        6)
+            Total_Amount_Of_Records
+            ;;
+        7)
+            Display_All_Records
+            ;;
+        8)
+            exit
+            ;;
+            
+        *)
+            echo "Invalid choice,Please try again."
+            main_menu
+            ;;
+    esac
+}
+
+#######################################################################################
+Write_to_log() {
+    # Get current date and time
+    current_date=$(date +"%Y-%m-%d")
+    current_time=$(date +"%H:%M:%S")
+    # Log file name 
+    Log_File="RecordsLogs.log"
+    if Is_Exist $Log_File 
+    then
+    	echo "No log file found."
+    	return
+    fi
+    
+    # Check if the file is not writable , make it writable
+    Is_Writable $Log_File 
+    
+    # Create log line
+    Log_Line="${current_date} ${current_time} $1"
+
+    # Append log line to log file
+    echo "$Log_Line" >> "$Log_File"
+}
+
+#######################################################################################
+Calculate_Total() {
+Total=0 
+    while IFS= read -r line
+    do
+        # Extract the second column for every line
+        Copies_Amount=$(echo "$line" | awk -F ',' '{print $2}')        
+        # Calculate the total
+        Total=$(($Total +$Copies_Amount))
+    done< "RecordsData.txt"    
+        return $Total
+   
+}
+####################################################################################
+Search() {
+#Parameters
+String=$1 
+
+    # Check if the file is exist
+    if Is_Exist "RecordsData.txt" 
+    then
+    	echo "No RecordsData file found."
+    	# Register a log entry
+    	Write_to_log "Search Failure"
+    	main_menu
+    fi
+    
+    # Check if the file is not readable , make it readable
+    Is_Readable "RecordsData.txt"
+    
+    # Check if the file is not empty
+    if Is_Empty "RecordsData.txt" 
+    then
+    	echo "No records found in the RecordsData."
+    	# Register a log entry
+    	Write_to_log "Search Failure"
+    	main_menu
+    fi
+      
+    #Validate string
+    if validate_string "$String"
+    then
+    	echo "unvalidate string name "
+    	Write_to_log "Search Failure"
+    	main_menu
+    fi
+    
+   Result=($(grep -ni $String "RecordsData.txt" | cut -d ':' -f 1,2))
+   echo "${Result[@]}"
+  
+
+}
+###################################################################################
+Display_All_Records() {
+    # Check if the RecordsData file not exists
+   
+    if Is_Exist "RecordsData.txt" 
+    then
+    	echo "No RecordsData file found."
+    	# Register a log entry
+    	Write_to_log "PrintAll Failure"
+    	main_menu
+    fi
+    
+    # Check if the file is not readable , make it readable
+    Is_Readable "RecordsData.txt"
+    
+    # Check if the file is not empty
+    if Is_Empty "RecordsData.txt" 
+    then
+    	echo "No records found in the RecordsData."
+    	# Register a log entry
+    	Write_to_log "PrintAll Failure"
+    	main_menu
+    fi
+    
+    # Sort the database file by record names
+    Sorted_Data=$(sort RecordsData.txt)
+    echo "Sorted Records:"
+    echo "$Sorted_Data"
+    
+    # Register a log entry
+    while IFS= read -r line
+    do
+        Write_to_log "PrintAll Success $line "
+    done <<<"$Sorted_Data"
+
+    
+    
+ #   for item in "${Sorted_Data[@]}"
+  #  do
+   # 	Write_to_log "PrintAll Success $item "  
+    #	echo 22222222	
+    #done
+        
+    # Return to the main menu
+    main_menu
+
+}
+
+
+##########################################################################################
+Search_Record() {
+    # Read the search string from the user
+    read -p "Please enter string of the record name you want to search : " String
+   
+    result_array=$(Search "$String")
+    IFS=' ' read -r -a Found_Records <<< "$result_array"
+    Found_Records_Size="${#Found_Records[@]}"
+
+    if [ $Found_Records_Size -gt 0 ]
+    then
+        # Sort the result
+        echo "Search results:" 
+        for item in "${Found_Records[@]}"
+        do
+    	Sorted_Result=$(echo "$item" | awk -F ':' '{print $2}' )
+   	echo "$Sorted_Result"
+	done | sort
+	# Register a log entry
+        Write_to_log "Search Success"
+    else
+        echo "No records found matching the search string."
+        # Register a log entry
+        Write_to_log "Search Failure"
+    fi
+
+    # Return to the main menu
+     main_menu
+}
+
+##########################################################################################
+Total_Amount_Of_Records() {
+
+    if Is_Exist "RecordsData.txt" 
+    then
+    	echo "No RecordsData file found."
+    	# Register a log entry
+    	Write_to_log "PrintAmount Failure"
+    	main_menu
+    fi
+    
+    # Check if the file is not readable , make it readable
+    Is_Readable "RecordsData.txt"  
+    
+    # Check if the file is not empty
+    if Is_Empty "RecordsData.txt" 
+    then
+    	echo "No records found in the RecordsData."
+    	# Register a log entry
+    	Write_to_log "PrintAmount Failure"
+    	main_menu
+    fi
+      
+    # Calculate total records
+    Calculate_Total
+    Total_Records=$?
+
+    # If there are records in the file
+    if [ "$Total_Records" -gt 0 ]
+    then
+          echo "Total number of records: $Total_Records"
+          # Register a log entry
+    	  Write_to_log "PrintAmount Success $Total_Records"
+    		
+    else
+          echo "There are no records in the RecordsData."
+          # Register a log entry
+    	  Write_to_log "PrintAmount Failure"
+    	  
+    fi
+    
+     # Return to the main menu
+    main_menu
+
+    
+}
+######################################################################
+Update_Name_Of_Record() { 
+
+    # Check if the file is not writable , make it writable
+    Is_Writable "RecordsData.txt" 
+     
+    # Read the new record name string from the user
+    read -p "Please enter string of the old record name and then the new record name : " Old_Name New_Name
+    validate_string "$New_Name"
+    Result=$?
+    if  [ $Result -eq 0 ]
+    then 
+    	echo "unvalidate string name "
+    	Write_to_log "UpdateName Failure"
+    	main_menu
+    fi
+   
+    result_array=$(Search "$Old_Name")
+    IFS=' ' read -r -a Found_Records <<< "$result_array"
+    Found_Records_Size="${#Found_Records[@]}"
+    
+    if [  $Found_Records_Size -eq 0 ]
+    then
+        echo "No record found with the old name."
+        # Register a log entry
+        Write_to_log "UpdateName Failure"
+    
+    elif [ $Found_Records_Size -eq 1 ] 
+    then
+        line_number=$(echo "${Found_Records[0]}" | awk -F ':' '{print $1}')
+        sed -i "${line_number}s/[^:]*,/$New_Name,/" RecordsData.txt
+   	echo "Record name updated successfully."
+   	# Register a log entry
+   	Write_to_log "UpdateName Success"
+        
+    elif [  $Found_Records_Size -gt 1 ]
+    then
+        echo "Multiple records found with the old name, Please select the record to update:"
+        for i in "${!Found_Records[@]}"
+        do
+            line_number=$(echo "${Found_Records[$i]}" | awk -F ':' '{print $1}')
+            Record=$(sed -n "${line_number}p" RecordsData.txt)
+            echo "$((i+1)). $Record"
+        done
+        read -p "Select a record to update: " choice
+   
+        #check if choice entered is not a number
+        if Is_Number "$choice"
+        then
+            echo "Invalid choise this is not number."
+            # Register a log entry
+            Write_to_log "UpdateName Failure"
+            main_menu
+        fi
+	#check if choice entered is not in field
+        if (( $choice < 1 || $choice > $Found_Records_Size ))
+        then
+            echo "Invalid choice this number is out of the range."
+            # Register a log entry
+            Write_to_log "UpdateName Failure"
+            main_menu
+        fi
+
+        # Update the record name
+
+   	line_number=$(echo "${Found_Records[$(($choice-1))]}" | awk -F ':' '{print $1}')
+        sed -i "${line_number}s/[^:]*,/$New_Name,/" RecordsData.txt
+   	echo "Record name updated successfully."
+   	# Register a log entry
+    	Write_to_log "UpdateName Success" 
+   
+    fi
+
+    # Return to the main menu
+    main_menu
+}
+########################################################################
+
+Update_Copies_Of_Record() {
+
+    # Check if the file is not writable , make it writable
+    Is_Writable "RecordsData.txt" 
+    
+    # Read the record name and the copies amount from the user
+    read -p "Please enter string of the record name and then the new copies amount: " Record_Name New_Copies_Amount
+    Is_Number "$New_Copies_Amount"
+    Result=$?
+    if [ $Result -eq 0 ]
+    then 
+    	echo "unvalidate copies amount "
+    	Write_to_log "UpdateAmount Failure"
+    	main_menu
+    fi
+
+   
+    result_array=$(Search "$Record_Name")
+    IFS=' ' read -r -a Found_Records <<< "$result_array"
+    Found_Records_Size="${#Found_Records[@]}"
+    
+
+    if [ $New_Copies_Amount -lt 1 ]
+    then
+    	echo "Record copies amount to update less than 1"
+       	# Register a log entry
+      	Write_to_log "UpdateAmount Failure"
+        main_menu
+    fi
+    
+    if [  $Found_Records_Size -eq 0 ]
+    then
+        echo "No record found with the record name."
+        # Register a log entry
+        Write_to_log "UpdateAmount Failure"
+                    
+    elif [ $Found_Records_Size -eq 1 ]    
+    then
+        line_number=$(echo "${Found_Records[0]}" | awk -F ':' '{print $1}')
+        sed -i "${line_number}s/[^:]*,[0-9]*/$Record_Name,$New_Copies_Amount/" RecordsData.txt
+       	echo "Record updated successfully."
+        # Register a log entry
+        Write_to_log "UpdateAmount Success"
+        
+        
+    else
+        echo "Multiple records found:"
+        for i in "${!Found_Records[@]}"
+        do
+            line_number=$(echo "${Found_Records[$i]}" | awk -F ':' '{print $1}')
+            Record=$(sed -n "${line_number}p" RecordsData.txt)
+            echo "$((i+1)). $Record"
+        done
+        
+        read -p "Select a record to update" choice
+        
+        
+        #check if choice entered is not a number
+        if Is_Number "$choice"
+        then
+            echo "Invalid choise this is not number."
+            # Register a log entry
+            Write_to_log "UpdateAmount Failure"
+            main_menu
+        fi
+	#check if choice entered is not in field
+        if (( $choice < 1 || $choice > $Found_Records_Size ))
+        then
+            echo "Invalid choice this number is out of the range."
+            # Register a log entry
+            Write_to_log "UpdateAmount Failure"
+            main_menu
+        fi
+       
+       	line_number=$(echo "${Found_Records[$(($choice-1))]}" | awk -F ':' '{print $1}')
+        sed -i "${line_number}s/[^:]*,[0-9]*/$Record_Name,$New_Copies_Amount/" RecordsData.txt
+        echo "Record updated successfully. "
+        # Register a log entry
+        Write_to_log "UpdateAmount Success" 
+            
+  fi
+  # Return to the main menu
+    main_menu
+ 
+}
+
+############################################################
+Add_Record() {
+    # Check if the file is not writable , make it writable
+    Is_Writable "RecordsData.txt" 
+    
+    # Read the record name and the copies amount from the user
+    read -p "Please enter string of the record name and then the copies amount: " Record_Name Copies_Amount
+    Is_Number "$Copies_Amount"
+    Result=$?
+    if [ $Result -eq 0 ]
+    then 
+    	echo "unvalidate copies amount "
+    	Write_to_log "Insert Failure"
+    	main_menu
+    fi
+
+    result_array=$(Search "$Record_Name")
+    IFS=' ' read -r -a Found_Records <<< "$result_array"
+    Found_Records_Size="${#Found_Records[@]}"
+     
+    if [[ $Found_Records_Size -eq 0 ]]
+    then
+	    echo  $Found_Records_Size
+	    echo "$Record_Name,$Copies_Amount" >> RecordsData.txt
+	    echo "New record added successfully."
+	    # Register a log entry
+            Write_to_log "Insert Success"
+            
+    elif [ $Found_Records_Size -eq 1 ]    
+    then
+        line_number=$(echo "${Found_Records[0]}" | awk -F ':' '{print $1}')
+        Old_Copies=$(sed -n "${line_number}p" RecordsData.txt|awk -F ',' '{print $2}')
+        New_Copies=$(($Old_Copies+$Copies_Amount))
+        sed -i "${line_number}s/[^:]*,[0-9]*/$Record_Name,$New_Copies/" RecordsData.txt
+        echo "Record updated successfully."
+        # Register a log entry
+        Write_to_log "Insert Success" 
+        
+    else
+        echo "Multiple records found:"
+        echo "0. Add as a new record"
+        for i in "${!Found_Records[@]}"
+        do
+            line_number=$(echo "${Found_Records[$i]}" | awk -F ':' '{print $1}')
+            Record=$(sed -n "${line_number}p" RecordsData.txt)
+            echo "$((i+1)). $Record"
+        done
+        
+        read -p "Select a record to update (or 0 to add as new): " choice
+        
+        #check if choice entered is not a number
+        if Is_Number "$choice"
+        then
+            echo "Invalid choise this is not number."
+            # Register a log entry
+            Write_to_log "Insert Failure"
+            main_menu
+        fi
+	#check if choice entered is not in field
+        if (( $choice < 1 || $choice > $Found_Records_Size ))
+        then
+            echo "Invalid choice this number is out of the range."
+            # Register a log entry
+            Write_to_log "Insert Failure"
+            main_menu
+        fi
+        
+        if [ $choice -eq 0 ]
+        then
+            echo "$Record_Name,$Copies_Amount" >> RecordsData.txt   
+            echo "New record added successfully."
+            # Register a log entry
+            Write_to_log "Insert Success"
+              
+        else
+            line_number=$(echo "${Found_Records[$(($choice-1))]}" | awk -F ':' '{print $1}')
+            Old_Copies=$(sed -n "${line_number}p" RecordsData.txt|awk -F ',' '{print $2}')
+            New_Copies=$(($Old_Copies+$Copies_Amount))
+      	    sed -i "${line_number}s/[^:]*,[0-9]*/$Record_Name,$New_Copies/" RecordsData.txt
+            echo "Record updated successfully. "
+            # Register a log entry
+            Write_to_log "Insert Success"
+        fi
+       
+  fi
+  # Return to the main menu
+    main_menu
+ 
+}
+
+
+##########################################################
+Delete_Record() {
+
+    # Check if the file is not writable , make it writable
+    Is_Writable "RecordsData.txt" 
+    
+    # Read the record name and the copies amount from the user
+    read -p "Please enter string of the record name and then the copies amount: " Record_Name Copies_Amount
+    Is_Number "$Copies_Amount"
+    Result=$?
+    if [ $Result -eq 0 ]
+    then 
+    	echo "unvalidate copies amount "
+    	Write_to_log "Delete Failure"
+    	main_menu
+    fi
+
+    result_array=$(Search "$Record_Name")
+    IFS=' ' read -r -a Found_Records <<< "$result_array"
+    Found_Records_Size="${#Found_Records[@]}"
+     
+  
+    if [[ $Found_Records_Size -eq 0 ]]
+    then
+	    echo "Record does not exist."
+	    # Register a log entry
+            Write_to_log "Delete Failure"
+            main_menu
+	    
+    elif [ $Found_Records_Size -eq 1 ]  
+    then
+        line_number=$(echo "${Found_Records[0]}" | awk -F ':' '{print $1}')
+        Old_Copies=$(sed -n "${line_number}p" RecordsData.txt|awk -F ',' '{print $2}')
+        New_Copies=$(($Old_Copies-$Copies_Amount))
+        if [ $New_Copies -eq 0 ]
+        then 
+        	sed -i "${line_number}d" RecordsData.txt
+        	echo "This record has been deleted ."
+        	# Register a log entry
+                Write_to_log "Delete Success"
+        elif [ $New_Copies -lt 0 ]
+        then
+        	echo "There is no enough copies ."
+                # Register a log entry
+            	Write_to_log "Delete Failure"
+        
+        elif [ $New_Copies -gt 0 ]
+        then
+        	sed -i "${line_number}s/[^:]*,[0-9]*/$Record_Name,$New_Copies/" RecordsData.txt
+ 		echo "Record updated successfully."
+ 		# Register a log entry
+                Write_to_log "Delete Success"
+ 	fi
+        
+    else
+        echo "Multiple records found:"
+        for i in "${!Found_Records[@]}"
+        do
+            line_number=$(echo "${Found_Records[$i]}" | awk -F ':' '{print $1}')
+            Record=$(sed -n "${line_number}p" RecordsData.txt)
+            echo "$((i+1)). $Record"
+        done
+        
+        read -p "Select a record to Delete: " choice
+   
+          #check if choice entered is not a number
+        if Is_Number "$choice"
+        then
+            echo "Invalid choise this is not number."
+            # Register a log entry
+            Write_to_log "Insert Failure"
+            main_menu
+        fi
+	#check if choice entered is not in field
+        if (( $choice < 1 || $choice > $Found_Records_Size ))
+        then
+            echo "Invalid choice this number is out of the range."
+            # Register a log entry
+            Write_to_log "Insert Failure"
+            main_menu
+        fi
+        line_number=$(echo "${Found_Records[$(($choice-1))]}" | awk -F ':' '{print $1}')
+        Old_Copies=$(sed -n "${line_number}p" RecordsData.txt|awk -F ',' '{print $2}')
+        New_Copies=$(($Old_Copies-$Copies_Amount))
+      	if [ $New_Copies -eq 0 ]
+        then 
+        	sed -i "${line_number}d" RecordsData.txt
+        	echo "This record has been deleted ."
+        	# Register a log entry
+            	Write_to_log "Delete Success"
+            	main_menu
+        elif [ $New_Copies -lt 0 ]
+        then
+        	echo "There is no enough copies ."
+        	# Register a log entry
+            	Write_to_log "Delete Failure"
+            	main_menu   
+        elif [ $New_Copies -gt 0 ]
+        then
+        	sed -i "${line_number}s/[^:]*,[0-9]*/$Record_Name,$New_Copies/" RecordsData.txt
+ 		echo "Record updated successfully."
+ 		# Register a log entry
+            	Write_to_log "Delete Success"
+            	main_menu
+        fi     
+  fi
+  # Return to the main menu
+    main_menu
+}
+
+###################################################################################################
+
+# Start the program with the main menu
+main_menu
+
+
+
+
+
+
+
+
+
+
